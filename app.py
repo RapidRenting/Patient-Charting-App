@@ -1,153 +1,149 @@
+import os
+import sqlite3
 import sys
-import os  # Added os import at the top
-# Use base_dir based on whether the app is frozen (packaged) or not.
-if getattr(sys, 'frozen', False):
-    base_dir = os.path.dirname(sys.executable)
-else:
-    base_dir = os.getcwd()
+import webbrowser
+from datetime import date, datetime
 
-from flask import Flask, render_template, request, redirect, url_for
-from jinja2 import Environment, FileSystemLoader
-import csv
-import datetime
-import re
+from flask import Flask, flash, redirect, render_template, request, url_for
+
+# Use the executable location when packaged; otherwise use current working directory.
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.getcwd()
+
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DB_PATH = os.path.join(DATA_DIR, "charting.db")
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "patient-charting-local"
 
-# Define directories for entry data and output data using base_dir.
-ENTRY_FOLDER = os.path.join(base_dir, "entry_data")
-OUTPUT_FOLDER = os.path.join(base_dir, "output_data")
-if not os.path.exists(ENTRY_FOLDER):
-    os.makedirs(ENTRY_FOLDER)
-if not os.path.exists(OUTPUT_FOLDER):
-    os.makedirs(OUTPUT_FOLDER)
 
-@app.route('/', methods=['GET', 'POST'])
+def get_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visit_date TEXT NOT NULL,
+                subjective TEXT NOT NULL,
+                treatment_details TEXT NOT NULL,
+                client_feedback TEXT NOT NULL,
+                home_care TEXT NOT NULL,
+                recommended_treatment_plan TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+
+def fetch_entries(search_query: str) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        if search_query:
+            like = f"%{search_query}%"
+            return conn.execute(
+                """
+                SELECT *
+                FROM entries
+                WHERE visit_date LIKE ?
+                   OR subjective LIKE ?
+                   OR treatment_details LIKE ?
+                   OR client_feedback LIKE ?
+                   OR home_care LIKE ?
+                   OR recommended_treatment_plan LIKE ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (like, like, like, like, like, like),
+            ).fetchall()
+
+        return conn.execute(
+            """
+            SELECT *
+            FROM entries
+            ORDER BY created_at DESC, id DESC
+            """
+        ).fetchall()
+
+
+@app.route("/", methods=["GET", "POST"])
 def index():
-    today_str = datetime.date.today().strftime('%Y%m%d')
-    selected_date = request.args.get('date', today_str)
-    try:
-        display_date = datetime.datetime.strptime(selected_date, "%Y%m%d").strftime('%b %d %Y')
-    except ValueError:
-        display_date = selected_date
+    if request.method == "POST":
+        action = request.form.get("action", "save")
 
-    form_enabled = (selected_date == today_str)
-    filename = os.path.join(ENTRY_FOLDER, f'charts_{selected_date}.csv')
+        if action == "delete":
+            entry_id = request.form.get("entry_id", "").strip()
+            search_query = request.form.get("q", "").strip()
 
-    if request.method == 'POST' and form_enabled:
-        treatment_details = request.form.get('treatment_details')
-        clinical_impression = request.form.get('clinical_impression')
-        client_feedback = request.form.get('client_feedback')
-        home_care = request.form.get('home_care')
-        recommended_treatment_plan = request.form.get('recommended_treatment_plan')
-        timestamp = datetime.datetime.now().isoformat()
-        file_exists = os.path.isfile(filename)
-        with open(filename, mode='a', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['treatment_details', 'clinical_impression', 'client_feedback', 'home_care', 'recommended_treatment_plan', 'timestamp']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow({
-                'treatment_details': treatment_details,
-                'clinical_impression': clinical_impression,
-                'client_feedback': client_feedback,
-                'home_care': home_care,
-                'recommended_treatment_plan': recommended_treatment_plan,
-                'timestamp': timestamp
-            })
-        return redirect(url_for('index', date=selected_date))
-
-    entries = []
-    if os.path.exists(filename):
-        with open(filename, mode='r', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if 'timestamp' in row and row['timestamp']:
-                    try:
-                        ts = datetime.datetime.fromisoformat(row['timestamp'])
-                        row['formatted_timestamp'] = ts.strftime('%b %d %Y - %I:%M:%S %p')
-                    except Exception:
-                        row['formatted_timestamp'] = row['timestamp']
-                else:
-                    row['formatted_timestamp'] = "No timestamp available"
-                entries.append(row)
-
-    available_dates = []
-    pattern = re.compile(r'charts_(\d{8})\.csv')
-    for f in os.listdir(ENTRY_FOLDER):
-        m = pattern.match(f)
-        if m:
-            date_str = m.group(1)
-            try:
-                display = datetime.datetime.strptime(date_str, "%Y%m%d").strftime('%b %d %Y')
-            except ValueError:
-                display = date_str
-            available_dates.append({'value': date_str, 'display': display})
-    available_dates.sort(key=lambda x: x['value'], reverse=True)
-
-    charts_generated = request.args.get('charts_generated')  # new line
-    return render_template('form.html',
-                           entries=entries,
-                           display_date=display_date,
-                           selected_date=selected_date,
-                           available_dates=available_dates,
-                           form_enabled=form_enabled,
-                           charts_generated=charts_generated)  # updated
-
-@app.route('/generate_charts', methods=['POST'])
-def generate_charts():
-    # Use selected date from query parameter or default to today's date
-    selected_date = request.args.get('date', datetime.date.today().strftime('%Y%m%d'))
-    csv_filename = os.path.join(ENTRY_FOLDER, f'charts_{selected_date}.csv')
-    output_filename = os.path.join(OUTPUT_FOLDER, f'final_charts_{selected_date}.txt')
-    generate_charts_from_csv(csv_filename, output_filename)
-    return redirect(url_for('index', date=selected_date, charts_generated='true'))  # updated
-
-def generate_charts_from_csv(csv_filename, output_filename):
-    # Use an absolute path to the templates folder
-    template_path = os.path.join(app.root_path, 'templates')
-    env = Environment(loader=FileSystemLoader(template_path))
-    template = env.get_template('chart_template.txt')
-    charts_output = ""
-    with open(csv_filename, mode='r', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for i, row in enumerate(reader, start=1):
-            if 'timestamp' in row and row['timestamp']:
-                try:
-                    ts = datetime.datetime.fromisoformat(row['timestamp'])
-                    formatted_timestamp = ts.strftime('%b %d %Y - %I:%M:%S %p')
-                except Exception:
-                    formatted_timestamp = row['timestamp']
+            if entry_id.isdigit():
+                with get_connection() as conn:
+                    conn.execute("DELETE FROM entries WHERE id = ?", (int(entry_id),))
+                flash("Entry deleted.", "success")
             else:
-                formatted_timestamp = "No timestamp available"
-            data = {
-                'patient_id': f"Patient {i:02d}",
-                'session_date': datetime.date.today().strftime('%Y-%m-%d'),
-                'treatment_details': row.get('treatment_details', ''),
-                'clinical_impression': row.get('clinical_impression', ''),
-                'client_feedback': row.get('client_feedback', ''),
-                'home_care': row.get('home_care', ''),
-                'recommended_treatment_plan': row.get('recommended_treatment_plan', ''),
-                'formatted_timestamp': formatted_timestamp,
-                'summary': f"Session notes for Patient {i:02d} reviewed and formatted."
-            }
-            charts_output += template.render(data) + "\n\n"
-    with open(output_filename, mode='w', encoding='utf-8') as outfile:
-        outfile.write(charts_output)
-    print(f"Charts generated and saved to {output_filename}")
+                flash("Could not delete entry.", "error")
 
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        import sys
-        sys.exit(0)  # Force exit if Werkzeug shutdown not available
-    else:
-        func()
-    return 'Server shutting down...'
+            return redirect(url_for("index", q=search_query))
 
-if __name__ == '__main__':
-    import webbrowser
+        visit_date = request.form.get("visit_date", date.today().isoformat()).strip()
+        subjective = request.form.get("subjective", "").strip()
+        treatment_details = request.form.get("treatment_details", "").strip()
+        client_feedback = request.form.get("client_feedback", "").strip()
+        home_care = request.form.get("home_care", "").strip()
+        recommended_treatment_plan = request.form.get("recommended_treatment_plan", "").strip()
+
+        if not subjective or not treatment_details:
+            flash("Subjective and Treatment Details are required.", "error")
+            return redirect(url_for("index"))
+
+        created_at = datetime.now().isoformat(timespec="seconds")
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO entries (
+                    visit_date,
+                    subjective,
+                    treatment_details,
+                    client_feedback,
+                    home_care,
+                    recommended_treatment_plan,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    visit_date,
+                    subjective,
+                    treatment_details,
+                    client_feedback,
+                    home_care,
+                    recommended_treatment_plan,
+                    created_at,
+                ),
+            )
+
+        flash("Entry saved.", "success")
+        return redirect(url_for("index"))
+
+    search_query = request.args.get("q", "").strip()
+    entries = fetch_entries(search_query)
+    return render_template(
+        "form.html",
+        entries=entries,
+        search_query=search_query,
+        today=date.today().isoformat(),
+    )
+
+
+if __name__ == "__main__":
+    init_db()
     port = 5000
-    webbrowser.open(f'http://127.0.0.1:{port}/')
+    webbrowser.open(f"http://127.0.0.1:{port}/")
     app.run(debug=True, port=port)
+else:
+    init_db()

@@ -1,738 +1,342 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Patient Session Entry - {{ display_date }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Charting</title>
   <style>
-    /* Overall page styling with a soft gradient background */
+    :root {
+      --bg-a: #fbf6ee;
+      --bg-b: #d5edf3;
+      --surface: rgba(255, 255, 255, 0.94);
+      --surface-strong: #ffffff;
+      --text-main: #1f2937;
+      --text-muted: #5b6472;
+      --border: #d9e5ec;
+      --accent: #0f766e;
+      --accent-2: #14b8a6;
+      --danger: #be123c;
+      --danger-bg: #ffe4ea;
+      --shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      min-height: 100vh;
       margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+      color: var(--text-main);
+      background: radial-gradient(circle at top left, #fff8eb 0%, transparent 32%),
+                  radial-gradient(circle at bottom right, #cdf2ea 0%, transparent 30%),
+                  linear-gradient(145deg, var(--bg-a), var(--bg-b));
+      min-height: 100vh;
+      padding: 22px 14px 30px;
+    }
+
+    .shell {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero {
+      background: linear-gradient(125deg, #0f766e, #115e59);
+      color: #eafffd;
+      border-radius: 18px;
+      padding: 24px 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 2.8vw, 1.95rem);
+      letter-spacing: 0.02em;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      color: #b8fff3;
+      font-size: 0.95rem;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
       padding: 20px;
     }
-    /* Center all headings */
-    h1, h2, h3 {
-      text-align: center;
-      color: #334e68;
+
+    .panel h2 {
+      margin: 0 0 12px;
+      color: #113045;
+      font-size: 1.1rem;
     }
-    /* History selector styling */
-    .history-selector {
-      width: 90%;
-      max-width: 700px;
-      margin-bottom: 20px;
-      text-align: center;
+
+    .flash-wrap {
+      display: grid;
+      gap: 8px;
     }
-    .history-selector label {
-      font-weight: bold;
-      margin-right: 10px;
-      color: #102a43;
-    }
-    .history-selector select {
-      padding: 8px 12px;
-      font-size: 14px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #ffffff;
-      cursor: pointer;
-    }
-    /* Container for the input form */
-    .form-container {
-      background: #ffffff;
-      padding: 20px 30px;
+
+    .flash {
       border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      width: 90%;
-      max-width: 700px;
-      margin-bottom: 30px;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
     }
-    form {
-      display: flex;
-      flex-direction: column;
+
+    .flash.success {
+      background: #dffcf5;
+      color: #055945;
+      border: 1px solid #97e5cc;
     }
+
+    .flash.error {
+      background: #ffe8ee;
+      color: #9f1239;
+      border: 1px solid #f9b7c8;
+    }
+
+    .field-grid {
+      display: grid;
+      gap: 12px;
+    }
+
     label {
-      font-weight: bold;
-      margin-top: 20px;
-      color: #102a43;
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #243244;
     }
-    .field-container {
-      margin-bottom: 20px;
-    }
-    /* Local toolbar styling for each field */
-    .local-toolbar {
-      margin-bottom: 5px;
-    }
-    .local-toolbar button,
-    .local-toolbar select {
-      padding: 6px 10px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #ffffff;
-      cursor: pointer;
-      margin-right: 5px;
-      transition: background-color 0.2s;
-    }
-    .local-toolbar button:hover,
-    .local-toolbar select:hover {
-      background-color: #e2e8f0;
-    }
+
+    input[type="date"],
+    input[type="search"],
     textarea {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      font-size: 15px;
+      border: 1px solid #cfdde5;
+      border-radius: 11px;
+      background: var(--surface-strong);
+      color: var(--text-main);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    textarea {
+      min-height: 88px;
       resize: vertical;
+      line-height: 1.45;
     }
-    /* Specific heights for each textarea */
-    #treatment_details { height: 100px; }
-    #clinical_impression { height: 150px; }
-    #client_feedback { height: 75px; }
-    #home_care { height: 100px; }
-    #recommended_treatment_plan { height: 50px; }
-    /* Style for the counters */
-    .counter {
-      font-size: 13px;
-      color: #617d98;
-      text-align: right;
-      margin-top: 3px;
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.14);
     }
-    /* Submit button styling */
-    input[type="submit"] {
-      display: block;
-      margin: 30px auto 0 auto;
-      background-color: #2f855a;
+
+    .actions {
+      margin-top: 4px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      border-radius: 11px;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .primary {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
       color: #fff;
-      border: none;
-      padding: 12px 25px;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background-color 0.2s;
+      box-shadow: 0 10px 20px rgba(15, 118, 110, 0.28);
     }
-    input[type="submit"]:hover {
-      background-color: #276749;
+
+    .primary:hover,
+    .danger:hover {
+      transform: translateY(-1px);
     }
-    /* Styling for the previous entries section */
-    .previous-entries {
-      width: 90%;
-      max-width: 700px;
-      background: #ffffff;
-      padding: 20px 30px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+    .secondary {
+      background: #edf5f8;
+      color: #154054;
+      border: 1px solid #cadbe5;
     }
-    .entry {
-      border-bottom: 1px solid #e2e8f0;
-      padding: 15px 0;
-    }
-    .entry:last-child {
-      border-bottom: none;
-    }
-    .entry h3 {
-      margin: 0;
-      font-size: 16px;
-      color: #334e68;
-    }
-    .entry p {
-      margin: 5px 0;
-      font-size: 14px;
-      color: #486581;
-    }
-    /* Management Panel for shared Treatment/Clinical options */
-    #treatmentClinicalManagementPanel {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #f9fafb;
-      display: none;
-    }
-    #treatmentClinicalManagementPanel input[type="text"] {
-      padding: 6px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      margin-right: 5px;
-    }
-    #treatmentClinicalManagementPanel button {
-      padding: 6px 10px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #ffffff;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    #treatmentClinicalManagementPanel button:hover {
-      background-color: #e2e8f0;
-    }
-    #treatmentClinicalOptionList {
-      margin-top: 10px;
-      list-style: none;
-      padding: 0;
-    }
-    #treatmentClinicalOptionList li {
-      padding: 5px 0;
-      display: flex;
+
+    .link-button {
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
+      text-decoration: none;
+      border-radius: 11px;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      min-width: 110px;
     }
-    #treatmentClinicalOptionList li span {
-      flex-grow: 1;
+
+    .danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #f7b6c8;
     }
-    #treatmentClinicalOptionList li button {
-      margin-left: 5px;
+
+    .entry-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
     }
-    /* Home Care Management Panel (as before) */
-    #homeCareManagementPanel {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #f9fafb;
-      display: none;
+
+    .entry-card {
+      border: 1px solid #dde8ee;
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.92);
     }
-    #homeCareManagementPanel input[type="text"] {
-      padding: 6px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      margin-right: 5px;
-    }
-    #homeCareManagementPanel button {
-      padding: 6px 10px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #ffffff;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    #homeCareManagementPanel button:hover {
-      background-color: #e2e8f0;
-    }
-    #homeCareOptionList {
-      margin-top: 10px;
-      list-style: none;
-      padding: 0;
-    }
-    #homeCareOptionList li {
-      padding: 5px 0;
+
+    .entry-top {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-    }
-    #homeCareOptionList li span {
-      flex-grow: 1;
-    }
-    #homeCareOptionList li button {
-      margin-left: 5px;
-    }
-    /* Management Panel for Recommended Treatment Plan */
-    #recommendedTreatmentPlanManagementPanel {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #f9fafb;
-      display: none;
-    }
-    #recommendedTreatmentPlanManagementPanel input[type="text"] {
-      padding: 6px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      margin-right: 5px;
-    }
-    #recommendedTreatmentPlanManagementPanel button {
-      padding: 6px 10px;
-      font-size: 13px;
-      border: 1px solid #bcccdc;
-      border-radius: 4px;
-      background-color: #ffffff;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    #recommendedTreatmentPlanManagementPanel button:hover {
-      background-color: #e2e8f0;
-    }
-    #recommendedTreatmentPlanOptionList {
-      margin-top: 10px;
-      list-style: none;
-      padding: 0;
-    }
-    #recommendedTreatmentPlanOptionList li {
-      padding: 5px 0;
-      display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
     }
-    #recommendedTreatmentPlanOptionList li span {
-      flex-grow: 1;
+
+    .entry-meta {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      font-weight: 700;
     }
-    #recommendedTreatmentPlanOptionList li button {
-      margin-left: 5px;
+
+    .entry-card p {
+      margin: 7px 0;
+      color: #3f4c5f;
+      line-height: 1.42;
+      white-space: pre-wrap;
+    }
+
+    .empty {
+      margin: 6px 0 0;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    @media (max-width: 760px) {
+      .hero,
+      .panel {
+        padding: 16px;
+      }
+
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Patient Session Entry - {{ display_date }}</h1>
-  
-  <!-- History Selector -->
-  {% if available_dates %}
-  <div class="history-selector">
-    <label for="historySelect">View Patient History:</label>
-    <select id="historySelect" onchange="location.href='?date=' + this.value" tabindex="-1">
-      {% for d in available_dates %}
-        <option value="{{ d.value }}" {% if d.value == selected_date %} selected {% endif %}>
-          {{ d.display }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
-  {% endif %}
-  
-  <!-- Display the new entry form only if viewing today's date -->
-  {% if form_enabled %}
-  <div class="form-container">
-    <form method="post" id="entryForm">
-      <!-- Field: Treatment Details (Shared toolbar) -->
-      <div class="field-container">
-        <label for="treatment_details">Treatment Details:</label>
-        <div class="local-toolbar">
-          <button type="button" onclick="insertBullet('treatment_details')" tabindex="-1">Bullet</button>
-          <select id="treatmentClinicalSelect" onchange="insertShortcutDirect(this, 'treatment_details')" tabindex="-1"></select>
-          <button type="button" onclick="toggleTreatmentClinicalManagement()" tabindex="-1">Manage Options</button>
+  <main class="shell">
+    <section class="hero">
+      <h1>Patient Charting</h1>
+      <p>Simple chart entry with built-in review, search, and delete.</p>
+    </section>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <section class="panel flash-wrap">
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </section>
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+      <h2>New Entry</h2>
+      <form method="post">
+        <input type="hidden" name="action" value="save">
+        <div class="field-grid">
+          <div>
+            <label for="visit_date">Visit Date</label>
+            <input id="visit_date" name="visit_date" type="date" value="{{ today }}" required>
+          </div>
+
+          <div>
+            <label for="subjective">Subjective</label>
+            <textarea id="subjective" name="subjective" required></textarea>
+          </div>
+
+          <div>
+            <label for="treatment_details">Treatment Details</label>
+            <textarea id="treatment_details" name="treatment_details" required></textarea>
+          </div>
+
+          <div>
+            <label for="client_feedback">Client Feedback</label>
+            <textarea id="client_feedback" name="client_feedback"></textarea>
+          </div>
+
+          <div>
+            <label for="home_care">Home Care</label>
+            <textarea id="home_care" name="home_care"></textarea>
+          </div>
+
+          <div>
+            <label for="recommended_treatment_plan">Recommended Treatment Plan</label>
+            <textarea id="recommended_treatment_plan" name="recommended_treatment_plan"></textarea>
+          </div>
         </div>
-        <textarea name="treatment_details" id="treatment_details" required tabindex="0" oninput="updateCounter(this)"></textarea>
-        <div class="counter" id="counter-treatment_details">Words: 0 | Chars: 0</div>
-      </div>
-      
-      <!-- Field: Clinical Impression/Comments (Shared toolbar) -->
-      <div class="field-container">
-        <label for="clinical_impression">Clinical Impression/Comments:</label>
-        <div class="local-toolbar">
-          <button type="button" onclick="insertBullet('clinical_impression')" tabindex="-1">Bullet</button>
-          <select id="treatmentClinicalSelect2" onchange="insertShortcutDirect(this, 'clinical_impression')" tabindex="-1"></select>
-          <button type="button" onclick="toggleTreatmentClinicalManagement()" tabindex="-1">Manage Options</button>
+
+        <div class="actions">
+          <button class="primary" type="submit">Save Entry</button>
         </div>
-        <textarea name="clinical_impression" id="clinical_impression" required tabindex="0" oninput="updateCounter(this)"></textarea>
-        <div class="counter" id="counter-clinical_impression">Words: 0 | Chars: 0</div>
-      </div>
-      
-      <!-- Shared Management Panel for Treatment/Clinical Options -->
-      <div id="treatmentClinicalManagementPanel">
-        <input type="text" id="newTreatmentClinicalOption" placeholder="New option" tabindex="-1">
-        <button type="button" onclick="addTreatmentClinicalOption()" tabindex="-1">Add Option</button>
-        <ul id="treatmentClinicalOptionList"></ul>
-      </div>
-      
-      <!-- Field: Client Feedback (No toolbar) -->
-      <div class="field-container">
-        <label for="client_feedback">Client Feedback:</label>
-        <textarea name="client_feedback" id="client_feedback" required tabindex="0" oninput="updateCounter(this)"></textarea>
-        <div class="counter" id="counter-client_feedback">Words: 0 | Chars: 0</div>
-      </div>
-      
-      <!-- Field: Home Care (Custom toolbar with management panel) -->
-      <div class="field-container">
-        <label for="home_care">Home Care:</label>
-        <div class="local-toolbar">
-          <button type="button" onclick="insertBullet('home_care')" tabindex="-1">Bullet</button>
-          <select id="homeCareSelect" onchange="insertShortcutDirect(this, 'home_care')" tabindex="-1"></select>
-          <button type="button" onclick="toggleHomeCareManagement()" tabindex="-1">Manage Options</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Review Entries</h2>
+      <form method="get">
+        <div class="actions">
+          <input type="search" name="q" placeholder="Search by date or note text" value="{{ search_query }}">
+          <button class="secondary" type="submit">Search</button>
+          <a href="{{ url_for('index') }}" class="secondary link-button">Clear</a>
         </div>
-        <div id="homeCareManagementPanel">
-          <input type="text" id="newHomeCareOption" placeholder="New option" tabindex="-1">
-          <button type="button" onclick="addHomeCareOption()" tabindex="-1">Add Option</button>
-          <ul id="homeCareOptionList"></ul>
-        </div>
-        <textarea name="home_care" id="home_care" required tabindex="0" oninput="updateCounter(this)"></textarea>
-        <div class="counter" id="counter-home_care">Words: 0 | Chars: 0</div>
-      </div>
-      
-      <!-- Field: Recommended Treatment Plan (Custom toolbar with management panel) -->
-      <div class="field-container">
-        <label for="recommended_treatment_plan">Recommended Treatment Plan:</label>
-        <div class="local-toolbar">
-          <button type="button" onclick="insertBullet('recommended_treatment_plan')" tabindex="-1">Bullet</button>
-          <select id="recommendedTreatmentPlanSelect" onchange="insertShortcutDirect(this, 'recommended_treatment_plan')" tabindex="-1"></select>
-          <button type="button" onclick="toggleRecommendedTreatmentPlanManagement()" tabindex="-1">Manage Options</button>
-        </div>
-        <div id="recommendedTreatmentPlanManagementPanel">
-          <input type="text" id="newRecommendedTreatmentPlanOption" placeholder="New option" tabindex="-1">
-          <button type="button" onclick="addRecommendedTreatmentPlanOption()" tabindex="-1">Add Option</button>
-          <ul id="recommendedTreatmentPlanOptionList"></ul>
-        </div>
-        <textarea name="recommended_treatment_plan" id="recommended_treatment_plan" required tabindex="0" oninput="updateCounter(this)"></textarea>
-        <div class="counter" id="counter-recommended_treatment_plan">Words: 0 | Chars: 0</div>
-      </div>
-      
-      <!-- Buttons Side by Side -->
-      <div style="display: flex; justify-content: space-between;">
-        <button id="saveEntryButton" type="submit" style="background-color: #48bb78; color: white; padding: 10px 20px; font-size: 16px; border-radius: 5px; border: none; cursor: pointer; width: 48%;" tabindex="-1">Submit</button>
-        <button id="generateChartsButton" type="submit" formnovalidate formaction="/generate_charts" formmethod="post" style="background-color: #4299e1; color: white; padding: 10px 20px; font-size: 16px; border-radius: 5px; border: none; cursor: pointer; width: 48%;" tabindex="-1">Generate Charts</button>
-      </div>
-    </form>
-  </div>
-  {% else %}
-    <div class="form-container">
-      <p style="text-align:center; color: #617d98;">Viewing patient history for {{ display_date }}. New entries are disabled.</p>
-    </div>
-  {% endif %}
-  
-  <!-- Section to display previous patient entries -->
-  <div class="previous-entries">
-    <h2>Patient Entries for {{ display_date }}</h2>
-    {% if entries %}
-      {% for entry in entries %}
-        <div class="entry">
-          <h3>Patient {{ "%02d"|format(loop.index) }} - {{ entry.formatted_timestamp }}</h3>
+      </form>
+
+      {% if entries %}
+      <div class="entry-list">
+        {% for entry in entries %}
+        <article class="entry-card">
+          <div class="entry-top">
+            <div class="entry-meta">ID {{ entry.id }} | Visit {{ entry.visit_date }} | Saved {{ entry.created_at }}</div>
+            <form method="post" onsubmit="return confirm('Delete this entry?');">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="entry_id" value="{{ entry.id }}">
+              <input type="hidden" name="q" value="{{ search_query }}">
+              <button class="danger" type="submit">Delete</button>
+            </form>
+          </div>
+          <p><strong>Subjective:</strong> {{ entry.subjective }}</p>
           <p><strong>Treatment Details:</strong> {{ entry.treatment_details }}</p>
-          <p><strong>Clinical Impression/Comments:</strong> {{ entry.clinical_impression }}</p>
           <p><strong>Client Feedback:</strong> {{ entry.client_feedback }}</p>
           <p><strong>Home Care:</strong> {{ entry.home_care }}</p>
           <p><strong>Recommended Treatment Plan:</strong> {{ entry.recommended_treatment_plan }}</p>
-        </div>
-      {% endfor %}
-    {% else %}
-      <p style="text-align:center; color:#617d98;">No entries available for this date.</p>
-    {% endif %}
-  </div>
-  
-  <script>
-    // Insertion functions remain as before.
-    function insertAtCursor(textareaId, text) {
-      const textarea = document.getElementById(textareaId);
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const currentText = textarea.value;
-      textarea.value = currentText.substring(0, start) + text + currentText.substring(end);
-      textarea.selectionStart = textarea.selectionEnd = start + text.length;
-      textarea.focus();
-      updateCounter(textarea);
-    }
-    
-    function insertBullet(textareaId) {
-      insertAtCursor(textareaId, "- ");
-    }
-    
-    // For direct insertion (used by our custom dropdowns)
-    function insertShortcutDirect(selectElem, textareaId) {
-      const value = selectElem.value;
-      if (value) {
-        insertAtCursor(textareaId, value);
-        selectElem.selectedIndex = 0;
-      }
-    }
-    
-    function updateCounter(textarea) {
-      const text = textarea.value;
-      const words = text.trim().length === 0 ? 0 : text.trim().split(/\s+/).length;
-      const chars = text.length;
-      const counterElement = document.getElementById("counter-" + textarea.id);
-      counterElement.textContent = `Words: ${words} | Chars: ${chars}`;
-    }
-    
-    document.addEventListener("DOMContentLoaded", function() {
-      document.querySelectorAll("textarea").forEach(function(textarea) {
-        updateCounter(textarea);
-      });
-      // Initialize shared and unique dropdowns and management panels
-      renderTreatmentClinicalDropdown();
-      renderTreatmentClinicalManagement();
-      renderHomeCareDropdown();
-      renderHomeCareManagement();
-      renderRecommendedTreatmentPlanDropdown();
-      renderRecommendedTreatmentPlanManagement();
-    });
-    
-    // Default options (non-deletable) for each shortcuts list.
-    const defaultTreatmentClinicalOptions = ["Default"];
-    const defaultHomeCareOptions = ["Default"];
-    const defaultRecommendedTreatmentPlanOptions = ["Default"];
-    
-    /* Shared Management for Treatment Details & Clinical Impression */
-    function getTreatmentClinicalOptions() {
-      let stored = localStorage.getItem('treatmentClinicalOptions');
-      let options = stored ? JSON.parse(stored) : [];
-      return defaultTreatmentClinicalOptions.concat(options);
-    }
-    
-    function setTreatmentClinicalOptions(options) {
-      // Save only non-default options.
-      localStorage.setItem('treatmentClinicalOptions', JSON.stringify(options));
-    }
-    
-    function renderTreatmentClinicalDropdown() {
-      const select1 = document.getElementById("treatmentClinicalSelect");
-      const select2 = document.getElementById("treatmentClinicalSelect2");
-      const options = getTreatmentClinicalOptions();
-      select1.innerHTML = "";
-      select2.innerHTML = "";
-      options.forEach(function(option) {
-        let opt1 = document.createElement("option");
-        opt1.value = option;
-        opt1.textContent = option;
-        select1.appendChild(opt1);
-        
-        let opt2 = document.createElement("option");
-        opt2.value = option;
-        opt2.textContent = option;
-        select2.appendChild(opt2);
-      });
-    }
-    
-    function renderTreatmentClinicalManagement() {
-      const list = document.getElementById("treatmentClinicalOptionList");
-      const options = getTreatmentClinicalOptions();
-      list.innerHTML = "";
-      options.forEach(function(option, index) {
-        let li = document.createElement("li");
-        let span = document.createElement("span");
-        span.textContent = option;
-        li.appendChild(span);
-        // Only add Delete if not a default
-        if (!defaultTreatmentClinicalOptions.includes(option)) {
-          let delButton = document.createElement("button");
-          delButton.textContent = "Delete";
-          delButton.onclick = function() {
-            let stored = localStorage.getItem('treatmentClinicalOptions');
-            let customOptions = stored ? JSON.parse(stored) : [];
-            // Remove only if present in custom options.
-            let pos = customOptions.indexOf(option);
-            if (pos !== -1) {
-              customOptions.splice(pos, 1);
-              setTreatmentClinicalOptions(customOptions);
-              renderTreatmentClinicalDropdown();
-              renderTreatmentClinicalManagement();
-            }
-          };
-          delButton.setAttribute("tabindex", "-1");
-          li.appendChild(delButton);
-        }
-        list.appendChild(li);
-      });
-    }
-    
-    function addTreatmentClinicalOption() {
-      const input = document.getElementById("newTreatmentClinicalOption");
-      const newOption = input.value.trim();
-      if (newOption && !defaultTreatmentClinicalOptions.includes(newOption)) {
-        let stored = localStorage.getItem('treatmentClinicalOptions');
-        let customOptions = stored ? JSON.parse(stored) : [];
-        customOptions.push(newOption);
-        setTreatmentClinicalOptions(customOptions);
-        renderTreatmentClinicalDropdown();
-        renderTreatmentClinicalManagement();
-        input.value = "";
-      }
-    }
-    
-    function toggleTreatmentClinicalManagement() {
-      const panel = document.getElementById("treatmentClinicalManagementPanel");
-      panel.style.display = (panel.style.display === "none" ? "block" : "none");
-    }
-    
-    /* Unique Management for Home Care */
-    function getHomeCareOptions() {
-      let stored = localStorage.getItem('homeCareOptions');
-      let options = stored ? JSON.parse(stored) : [];
-      return defaultHomeCareOptions.concat(options);
-    }
-    
-    function setHomeCareOptions(options) {
-      localStorage.setItem('homeCareOptions', JSON.stringify(options));
-    }
-    
-    function renderHomeCareDropdown() {
-      const select = document.getElementById("homeCareSelect");
-      const options = getHomeCareOptions();
-      select.innerHTML = "";
-      options.forEach(function(option) {
-        let opt = document.createElement("option");
-        opt.value = option;
-        opt.textContent = option;
-        select.appendChild(opt);
-      });
-    }
-    
-    function renderHomeCareManagement() {
-      const list = document.getElementById("homeCareOptionList");
-      const options = getHomeCareOptions();
-      list.innerHTML = "";
-      options.forEach(function(option, index) {
-        let li = document.createElement("li");
-        let span = document.createElement("span");
-        span.textContent = option;
-        li.appendChild(span);
-        if (!defaultHomeCareOptions.includes(option)) {
-          let delButton = document.createElement("button");
-          delButton.textContent = "Delete";
-          delButton.onclick = function() {
-            let stored = localStorage.getItem('homeCareOptions');
-            let customOptions = stored ? JSON.parse(stored) : [];
-            let pos = customOptions.indexOf(option);
-            if (pos !== -1) {
-              customOptions.splice(pos, 1);
-              setHomeCareOptions(customOptions);
-              renderHomeCareDropdown();
-              renderHomeCareManagement();
-            }
-          };
-          delButton.setAttribute("tabindex", "-1");
-          li.appendChild(delButton);
-        }
-        list.appendChild(li);
-      });
-    }
-    
-    function addHomeCareOption() {
-      const input = document.getElementById("newHomeCareOption");
-      const newOption = input.value.trim();
-      if (newOption && !defaultHomeCareOptions.includes(newOption)) {
-        let stored = localStorage.getItem('homeCareOptions');
-        let customOptions = stored ? JSON.parse(stored) : [];
-        customOptions.push(newOption);
-        setHomeCareOptions(customOptions);
-        renderHomeCareDropdown();
-        renderHomeCareManagement();
-        input.value = "";
-      }
-    }
-    
-    function toggleHomeCareManagement() {
-      const panel = document.getElementById("homeCareManagementPanel");
-      panel.style.display = (panel.style.display === "none" ? "block" : "none");
-    }
-    
-    /* Unique Management for Recommended Treatment Plan */
-    function getRecommendedTreatmentPlanOptions() {
-      let stored = localStorage.getItem('recommendedTreatmentPlanOptions');
-      let options = stored ? JSON.parse(stored) : [];
-      return defaultRecommendedTreatmentPlanOptions.concat(options);
-    }
-    
-    function setRecommendedTreatmentPlanOptions(options) {
-      localStorage.setItem('recommendedTreatmentPlanOptions', JSON.stringify(options));
-    }
-    
-    function renderRecommendedTreatmentPlanDropdown() {
-      const select = document.getElementById("recommendedTreatmentPlanSelect");
-      const options = getRecommendedTreatmentPlanOptions();
-      select.innerHTML = "";
-      options.forEach(function(option) {
-        let opt = document.createElement("option");
-        opt.value = option;
-        opt.textContent = option;
-        select.appendChild(opt);
-      });
-    }
-    
-    function renderRecommendedTreatmentPlanManagement() {
-      const list = document.getElementById("recommendedTreatmentPlanOptionList");
-      const options = getRecommendedTreatmentPlanOptions();
-      list.innerHTML = "";
-      options.forEach(function(option, index) {
-        let li = document.createElement("li");
-        let span = document.createElement("span");
-        span.textContent = option;
-        li.appendChild(span);
-        if (!defaultRecommendedTreatmentPlanOptions.includes(option)) {
-          let delButton = document.createElement("button");
-          delButton.textContent = "Delete";
-          delButton.onclick = function() {
-            let stored = localStorage.getItem('recommendedTreatmentPlanOptions');
-            let customOptions = stored ? JSON.parse(stored) : [];
-            let pos = customOptions.indexOf(option);
-            if (pos !== -1) {
-              customOptions.splice(pos, 1);
-              setRecommendedTreatmentPlanOptions(customOptions);
-              renderRecommendedTreatmentPlanDropdown();
-              renderRecommendedTreatmentPlanManagement();
-            }
-          };
-          delButton.setAttribute("tabindex", "-1");
-          li.appendChild(delButton);
-        }
-        list.appendChild(li);
-      });
-    }
-    
-    function addRecommendedTreatmentPlanOption() {
-      const input = document.getElementById("newRecommendedTreatmentPlanOption");
-      const newOption = input.value.trim();
-      if (newOption && !defaultRecommendedTreatmentPlanOptions.includes(newOption)) {
-        let stored = localStorage.getItem('recommendedTreatmentPlanOptions');
-        let customOptions = stored ? JSON.parse(stored) : [];
-        customOptions.push(newOption);
-        setRecommendedTreatmentPlanOptions(customOptions);
-        renderRecommendedTreatmentPlanDropdown();
-        renderRecommendedTreatmentPlanManagement();
-        input.value = "";
-      }
-    }
-    
-    function toggleRecommendedTreatmentPlanManagement() {
-      const panel = document.getElementById("recommendedTreatmentPlanManagementPanel");
-      panel.style.display = (panel.style.display === "none" ? "block" : "none");
-    }
-    
-    // On DOM loaded initialize and add our Generate Charts handler.
-    document.addEventListener("DOMContentLoaded", function() {
-      document.querySelectorAll("textarea").forEach(textarea => updateCounter(textarea));
-      renderTreatmentClinicalDropdown();
-      renderTreatmentClinicalManagement();
-      renderHomeCareDropdown();
-      renderHomeCareManagement();
-      renderRecommendedTreatmentPlanDropdown();
-      renderRecommendedTreatmentPlanManagement();
-      
-      const genBtn = document.getElementById("generateChartsButton");
-      const form = document.getElementById("entryForm");
-      genBtn.addEventListener("click", function(e) {
-        const textareas = form.querySelectorAll("textarea");
-        let unsavedData = false;
-        textareas.forEach(textarea => {
-          if(textarea.value.trim() !== ""){
-            unsavedData = true;
-          }
-        });
-        if(unsavedData) {
-          e.preventDefault();
-          alert("Please submit your current entry before generating charts!");
-        }
-        // Else, allow default form submission to /generate_charts.
-      });
-      // If charts were generated, display a success notice.
-      var chartsGenerated = "{{ charts_generated|default('false') }}";
-      if(chartsGenerated === "true") {
-        alert("Charts generated successfully!");
-      }
-    });
-    
-    // Add form submit listener to handle the Save button alert.
-    document.getElementById("entryForm").addEventListener("submit", function(e) {
-      // e.submitter is supported in modern browsers.
-      if(e.submitter && e.submitter.id === "saveEntryButton") {
-        // If the form is valid the browser will submit; we show the alert.
-        if(this.checkValidity()) {
-          alert("Entry submitted successfully!");
-        }
-      }
-    });
-    
-    // Shutdown server on page unload remains unchanged.
-    window.addEventListener("unload", function() {
-      navigator.sendBeacon('/shutdown');
-    });
-  </script>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">No entries found.</p>
+      {% endif %}
+    </section>
+  </main>
 </body>
 </html>

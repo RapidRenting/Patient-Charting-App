@@ -25,10 +25,10 @@ pip-wheel-metadata/
 Thumbs.db
 
 # Project runtime/generated data
-entry_data/*
-output_data/*
-!entry_data/.gitkeep
-!output_data/.gitkeep
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+!data/.gitkeep
 
 # Variant/bundle folders not part of primary source
 Charting_App_2.0/
