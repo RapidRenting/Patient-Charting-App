@@ -1,0 +1,39 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# IDE and workspace metadata
+.vs/
+.vscode/
+*.code-workspace
+
+# OS clutter
+.DS_Store
+Thumbs.db
+
+# Project runtime/generated data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/entry_data
+!data/.gitkeep
+
+# Variant/bundle folders not part of primary source
+Charting_App_2.0/
+mac/
+
+# PyInstaller generated spec
+*.spec
