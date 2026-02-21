@@ -1,9 +1,15 @@
 import os
+import signal
+import socket
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import webbrowser
+from contextlib import suppress
 from datetime import date, datetime
 from typing import Final
 
@@ -11,9 +17,13 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 
 APP_NAME = "PatientCharting"
 IS_FROZEN = getattr(sys, "frozen", False)
-HEARTBEAT_TIMEOUT_SECONDS: Final[int] = 5
-HEARTBEAT_CHECK_INTERVAL_SECONDS: Final[int] = 1
+HEARTBEAT_TIMEOUT_SECONDS: Final[int] = int(os.getenv("CHARTING_IDLE_SHUTDOWN_SECONDS", "0"))
+HEARTBEAT_CHECK_INTERVAL_SECONDS: Final[int] = 5
+SESSION_CLOSE_SHUTDOWN_GRACE_SECONDS: Final[int] = 1
 last_heartbeat_monotonic = time.monotonic()
+active_sessions: set[str] = set()
+session_state_lock = threading.Lock()
+shutdown_timer: threading.Timer | None = None
 
 
 def get_resource_dir() -> str:
@@ -38,6 +48,7 @@ def get_data_dir() -> str:
 RESOURCE_DIR = get_resource_dir()
 DATA_DIR = get_data_dir()
 DB_PATH = os.path.join(DATA_DIR, "charting.db")
+PID_PATH = os.path.join(os.path.dirname(DATA_DIR), "app.pid")
 
 app = Flask(__name__, template_folder=os.path.join(RESOURCE_DIR, "templates"))
 app.config["SECRET_KEY"] = "patient-charting-local"
@@ -49,7 +60,120 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.2)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def is_server_healthy(port: int) -> bool:
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/heartbeat",
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=0.5) as response:
+            return response.status == 204
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
+def read_pid() -> int | None:
+    try:
+        with open(PID_PATH, "r", encoding="utf-8") as handle:
+            value = handle.read().strip()
+    except OSError:
+        return None
+    return int(value) if value.isdigit() else None
+
+
+def write_pid() -> None:
+    try:
+        os.makedirs(os.path.dirname(PID_PATH), exist_ok=True)
+        with open(PID_PATH, "w", encoding="utf-8") as handle:
+            handle.write(str(os.getpid()))
+    except OSError:
+        # PID bookkeeping is optional; app startup must not fail if file is not writable.
+        return
+
+
+def remove_pid() -> None:
+    current_pid = read_pid()
+    if current_pid == os.getpid():
+        with suppress(OSError):
+            os.remove(PID_PATH)
+
+
+def pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def terminate_pid(pid: int) -> None:
+    with suppress(OSError):
+        os.kill(pid, signal.SIGTERM)
+    for _ in range(20):
+        if not pid_running(pid):
+            return
+        time.sleep(0.1)
+    with suppress(OSError):
+        os.kill(pid, signal.SIGKILL)
+
+
+def open_url(url: str) -> None:
+    if sys.platform == "darwin":
+        with suppress(OSError):
+            subprocess.Popen(["open", url])
+            return
+    webbrowser.open(url)
+
+
+def cleanup_stale_instance() -> None:
+    pid = read_pid()
+    if pid and pid != os.getpid() and pid_running(pid):
+        terminate_pid(pid)
+    elif pid and not pid_running(pid):
+        remove_pid()
+
+
+def cancel_scheduled_shutdown() -> None:
+    global shutdown_timer
+    with session_state_lock:
+        if shutdown_timer is not None:
+            shutdown_timer.cancel()
+            shutdown_timer = None
+
+
+def schedule_shutdown_if_no_sessions() -> None:
+    global shutdown_timer
+    if not IS_FROZEN:
+        return
+    if HEARTBEAT_TIMEOUT_SECONDS > 0:
+        return
+
+    with session_state_lock:
+        if active_sessions:
+            return
+        if shutdown_timer is not None:
+            shutdown_timer.cancel()
+
+        def shutdown_if_still_idle() -> None:
+            with session_state_lock:
+                still_idle = len(active_sessions) == 0
+            if still_idle:
+                os._exit(0)
+
+        shutdown_timer = threading.Timer(SESSION_CLOSE_SHUTDOWN_GRACE_SECONDS, shutdown_if_still_idle)
+        shutdown_timer.daemon = True
+        shutdown_timer.start()
+
+
 def heartbeat_watchdog() -> None:
+    if HEARTBEAT_TIMEOUT_SECONDS <= 0:
+        return
     while True:
         time.sleep(HEARTBEAT_CHECK_INTERVAL_SECONDS)
         elapsed = time.monotonic() - last_heartbeat_monotonic
@@ -203,7 +327,10 @@ def index():
 
         if action == "delete":
             entry_id = request.form.get("entry_id", "").strip()
-            search_query = request.form.get("q", "").strip()
+            search_year = normalize_date_part(request.form.get("sy", ""), 4)
+            search_month = normalize_date_part(request.form.get("sm", ""), 2)
+            search_day = normalize_date_part(request.form.get("sd", ""), 2)
+            text_query = request.form.get("t", "").strip()
 
             if entry_id.isdigit():
                 with get_connection() as conn:
@@ -212,7 +339,15 @@ def index():
             else:
                 flash("Could not delete entry.", "error")
 
-            return redirect(url_for("index", q=search_query))
+            return redirect(
+                url_for(
+                    "index",
+                    sy=search_year,
+                    sm=search_month,
+                    sd=search_day,
+                    t=text_query,
+                )
+            )
 
         visit_year = normalize_date_part(request.form.get("visit_year", ""), 4)
         visit_month = normalize_date_part(request.form.get("visit_month", ""), 2)
@@ -302,13 +437,52 @@ def heartbeat():
     return ("", 204)
 
 
+@app.route("/session/open", methods=["POST"])
+def session_open():
+    session_id = request.form.get("id", "").strip()
+    if session_id:
+        with session_state_lock:
+            active_sessions.add(session_id)
+        cancel_scheduled_shutdown()
+    return ("", 204)
+
+
+@app.route("/session/close", methods=["POST"])
+def session_close():
+    session_id = request.form.get("id", "").strip()
+    if session_id:
+        with session_state_lock:
+            active_sessions.discard(session_id)
+    schedule_shutdown_if_no_sessions()
+    return ("", 204)
+
+
+@app.route("/quit", methods=["POST"])
+def quit_app():
+    threading.Timer(0.2, lambda: os._exit(0)).start()
+    return ("", 204)
+
+
 if __name__ == "__main__":
     init_db()
     port = 5000
-    # Delay open so browser loads after the server starts.
-    threading.Timer(0.7, lambda: webbrowser.open(f"http://127.0.0.1:{port}/")).start()
     if IS_FROZEN:
+        if is_port_in_use(port):
+            if is_server_healthy(port):
+                open_url(f"http://127.0.0.1:{port}/")
+                sys.exit(0)
+            cleanup_stale_instance()
+            time.sleep(0.3)
+        write_pid()
+
+    # Delay open so browser loads after the server starts.
+    threading.Timer(0.7, lambda: open_url(f"http://127.0.0.1:{port}/")).start()
+    if IS_FROZEN and HEARTBEAT_TIMEOUT_SECONDS > 0:
         threading.Thread(target=heartbeat_watchdog, daemon=True).start()
-    app.run(debug=not IS_FROZEN, use_reloader=False, port=port)
+    try:
+        app.run(debug=not IS_FROZEN, use_reloader=False, port=port)
+    finally:
+        if IS_FROZEN:
+            remove_pid()
 else:
     init_db()

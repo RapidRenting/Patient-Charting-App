@@ -296,7 +296,7 @@
 
     <section class="panel">
       <h2>New Entry</h2>
-      <form method="post">
+      <form id="entry-form" method="post">
         <input type="hidden" name="action" value="save">
         <div class="field-grid">
           <div>
@@ -389,6 +389,7 @@
           </div>
           <input type="search" name="t" placeholder="Search notes text" value="{{ text_query }}">
           <button class="secondary" type="submit">Search</button>
+          <button id="quit-app-button" class="secondary" type="button">Quit App</button>
           <a href="{{ url_for('index') }}" class="secondary link-button">Clear</a>
         </div>
       </form>
@@ -402,7 +403,10 @@
             <form method="post" onsubmit="return confirm('Delete this entry?');">
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="entry_id" value="{{ entry.id }}">
-              <input type="hidden" name="q" value="{{ search_query }}">
+              <input type="hidden" name="sy" value="{{ search_year }}">
+              <input type="hidden" name="sm" value="{{ search_month }}">
+              <input type="hidden" name="sd" value="{{ search_day }}">
+              <input type="hidden" name="t" value="{{ text_query }}">
               <button class="danger" type="submit">Delete</button>
             </form>
           </div>
@@ -421,18 +425,81 @@
   </main>
   <script>
     (function () {
+      const sessionKey = "patient_charting_session_id";
+      let sessionId = window.sessionStorage.getItem(sessionKey);
+      if (!sessionId) {
+        sessionId = (window.crypto && window.crypto.randomUUID)
+          ? window.crypto.randomUUID()
+          : String(Date.now()) + String(Math.random()).slice(2);
+        window.sessionStorage.setItem(sessionKey, sessionId);
+      }
+
+      const sendSessionOpen = () => {
+        const payload = new URLSearchParams({ id: sessionId });
+        fetch("/session/open", { method: "POST", body: payload }).catch(() => {});
+      };
+
+      const sendSessionClose = () => {
+        const payload = new URLSearchParams({ id: sessionId });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/session/close", payload);
+          return;
+        }
+        fetch("/session/close", { method: "POST", body: payload, keepalive: true }).catch(() => {});
+      };
+
       const sendHeartbeat = () => {
         fetch("/heartbeat", { method: "POST", keepalive: true }).catch(() => {});
       };
 
+      sendSessionOpen();
       sendHeartbeat();
       setInterval(sendHeartbeat, 1000);
+
+      const entryForm = document.getElementById("entry-form");
+      if (entryForm) {
+        let submitting = false;
+        entryForm.addEventListener("submit", async (event) => {
+          if (submitting) {
+            return;
+          }
+          event.preventDefault();
+          try {
+            const response = await fetch("/heartbeat", { method: "POST" });
+            if (!response.ok) {
+              throw new Error("Session not available");
+            }
+            submitting = true;
+            entryForm.submit();
+          } catch (error) {
+            alert("Session expired while inactive. Reopen the app and submit again. Your typed text is still on this page.");
+          }
+        });
+      }
+
+      const quitButton = document.getElementById("quit-app-button");
+      if (quitButton) {
+        quitButton.addEventListener("click", async () => {
+          if (!confirm("Close the app now?")) {
+            return;
+          }
+          try {
+            await fetch("/quit", { method: "POST", keepalive: true });
+            setTimeout(() => window.close(), 250);
+          } catch (error) {
+            alert("Could not close app. Please reopen and try again.");
+          }
+        });
+      }
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") {
           sendHeartbeat();
         }
       });
+
+      window.addEventListener("pagehide", sendSessionClose);
+      window.addEventListener("beforeunload", sendSessionClose);
     })();
   </script>
 </body>
